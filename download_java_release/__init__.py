@@ -136,9 +136,9 @@ def patch_java_crypto_policy_files(dl_dir, result_dir):
 def main():
     latest_version_url = ('https://www.oracle.com/technetwork/java/javase/'
                           'downloads/jdk8-downloads-2133151.html')
-    dl_dir = tempfile.mkdtemp()
+    dl_dir = os.path.abspath('downloads')
     result_dir = os.path.join(dl_dir, 'patched')
-    os.mkdir(result_dir)
+    os.makedirs(result_dir)
     download_latest_jdk_version(latest_version_url, dl_dir)
     verify_downloaded_jdk(dl_dir)
     jce_fname = os.path.join(dl_dir, 'jce_policy-8.zip')
@@ -149,4 +149,5 @@ def main():
     print('You can find patched jdk files in', result_dir)
 
 
-main()
+if __name__=='__main__':
+    main()
