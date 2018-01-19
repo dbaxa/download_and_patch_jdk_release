@@ -1,11 +1,6 @@
 import hashlib
 import json
 import os
-import shutil
-import tempfile
-import tarfile
-import zipfile
-import io
 try:
     from urllib.parse import quote_plus
 except ImportError:
@@ -84,69 +79,14 @@ def verify_downloaded_jdk(dl_dir):
                   (fname, verify_url, actual_file_hash))
 
 
-def download_unlimited_jce_policy(jce_fname):
-    session = requests.session()
-    resp = session.get(
-        'http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip',
-        cookies={"oraclelicense": "accept-securebackup-cookie"}, stream=True)
-    with open(jce_fname, 'wb') as f:
-        shutil.copyfileobj(resp.raw, f)
-
-
-def verify_url_jce_policy(fname, jce_file):
-    expected_hash = ('f3020a3922efd6626c2fff45695d527f34a8020e938a4'
-                     '9292561f18ad1320b59')
-    actual_file_hash = sha_256_sum_file(jce_file)
-    if actual_file_hash != expected_hash:
-        raise ValueError('Hash of %s does not match %s (was %s)' %
-                         fname, expected_hash, actual_file_hash)
-
-
-def patch_java_crypto_policy_files(dl_dir, result_dir):
-    jce_zip_path = os.path.join(dl_dir, 'jce_policy-8.zip')
-    jce_files = {}
-    with zipfile.ZipFile(jce_zip_path, 'r') as z_file:
-        for name in z_file.namelist():
-            if name.endswith('/local_policy.jar') or name.endswith(
-                    '/US_export_policy.jar'):
-                bytesIO = io.BytesIO(z_file.read(name))
-                jce_files[os.path.basename(name)] = bytesIO
-    if {'local_policy.jar', 'US_export_policy.jar'} != set(jce_files.keys()):
-        raise ValueError('The JCE does not contain the expected content')
-    for f in os.listdir(dl_dir):
-        fname = os.path.join(dl_dir, f)
-        if os.path.isfile(fname) and fname.endswith('.tar.gz'):
-            output_tar = tarfile.open(
-                os.path.join(result_dir, f), mode='w:gz')
-            print('Going to patch', fname)
-            with tarfile.open(fname, mode='r:gz') as tar:
-                for tar_info in tar.getmembers():
-                    tar_f_obj = tar.extractfile(tar_info)
-                    if os.path.basename(tar_info.name) in jce_files.keys():
-                        tar_f_obj = jce_files[os.path.basename(tar_info.name)]
-                        tar_f_obj.seek(0, os.SEEK_END)
-                        size = tar_f_obj.tell()
-                        tar_info.size = size
-                        tar_f_obj.seek(0)
-                        print('patching', tar_info.name)
-                    output_tar.addfile(tar_info, tar_f_obj)
-            output_tar.close()
-
-
 def main():
     latest_version_url = ('https://www.oracle.com/technetwork/java/javase/'
                           'downloads/jdk8-downloads-2133151.html')
     dl_dir = os.path.abspath('downloads')
-    result_dir = os.path.join(dl_dir, 'patched')
-    os.makedirs(result_dir)
+    os.makedirs(dl_dir)
     download_latest_jdk_version(latest_version_url, dl_dir)
     verify_downloaded_jdk(dl_dir)
-    jce_fname = os.path.join(dl_dir, 'jce_policy-8.zip')
-    download_unlimited_jce_policy(jce_fname)
-    with open(jce_fname, 'rb') as jce_file:
-        verify_url_jce_policy(jce_fname, jce_file)
-    patch_java_crypto_policy_files(dl_dir, result_dir)
-    print('You can find patched jdk files in', result_dir)
+    print('You can find jdk files in', dl_dir)
 
 
 if __name__=='__main__':
